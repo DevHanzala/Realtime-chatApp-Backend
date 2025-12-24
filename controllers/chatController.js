@@ -1,39 +1,47 @@
-import admin from "../services/firebase.js"
-
-const onlineUsers = new Map();
+const onlineUsers = new Map(); // uid -> email
+const roomMessages = new Map(); // roomId -> [messages]
 
 export const handleConnection = (io, socket) => {
-  // console.log(`User connected: ${socket.user.uid}`);
+  const { uid, email } = socket.user;
 
-  onlineUsers.set(socket.user.uid, socket.user.email || socket.user.uid);
-  io.emit('onlineUsers', Array.from(onlineUsers.values()));
+  console.log('[CONNECT]', uid, email);
+  onlineUsers.set(uid, email);
+  io.emit('onlineUsers', [...new Set(onlineUsers.values())]);
 
-  socket.on('message', (data) => {
+  socket.on('joinRoom', (roomId) => {
+    console.log('[JOIN ROOM]', email, 'joined', roomId);
+    socket.join(roomId);
+
+    // REPLAY HISTORY TO NEW JOINER
+    const history = roomMessages.get(roomId) || [];
+    socket.emit('messageHistory', history);
+  });
+
+  socket.on('message', ({ roomId, text }) => {
     const msg = {
-      sender: socket.user.uid,
-      text: data.text,
+      sender: uid,
+      roomId,
+      text,
       timestamp: Date.now(),
     };
-    io.emit('message', msg);
-  });
 
-  socket.on('error', (err) => {
-    console.error('Socket error:', err);
-  });
+    console.log('[MESSAGE]', { from: email, roomId, text });
 
-  socket.on('disconnect', async () => {
-    // console.log(`User disconnected: ${socket.user.uid}`);
-    onlineUsers.delete(socket.user.uid);
-    io.emit('onlineUsers', Array.from(onlineUsers.values()));
+    // Save to history
+    if (!roomMessages.has(roomId)) roomMessages.set(roomId, []);
+    roomMessages.get(roomId).push(msg);
 
-    // Update Firestore offline status (optional — skip if document not exists)
-    try {
-      const userDoc = await admin.firestore().collection('users').doc(socket.user.uid).get();
-      if (userDoc.exists) {
-        await userDoc.ref.update({ online: false });
-      }
-    } catch (err) {
-      console.error('Offline status update failed:', err);
+    // Limit history to last 50 messages (optional)
+    if (roomMessages.get(roomId).length > 50) {
+      roomMessages.get(roomId).shift();
     }
+
+    io.to(roomId).emit('message', msg);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('[DISCONNECT]', email);
+    onlineUsers.delete(uid);
+    io.emit('onlineUsers', [...new Set(onlineUsers.values())]);
   });
 };
