@@ -12,17 +12,23 @@ export const handleConnection = (io, socket) => {
   io.emit('onlineUsers', [...new Set(onlineUsers.values())]);
 
   // JOIN ROOM
-  socket.on('joinRoom', async (roomId) => {
-    console.log('[JOIN ROOM]', email, roomId);
-    socket.join(roomId);
+ socket.on('joinRoom', async (roomId) => {
+  for (const room of socket.rooms) {
+    if (room !== socket.id) {
+      socket.leave(room);
+    }
+  }
 
-    const history = await getRoomMessages(roomId);
+  socket.join(roomId);
 
-    socket.emit('messageHistory', {
-      roomId,
-      history,
-    });
+  const history = await getRoomMessages(roomId);
+
+  socket.emit('messageHistory', {
+    roomId,
+    history,
   });
+});
+
 
   // SEND MESSAGE (MUST BE OUTSIDE joinRoom)
   socket.on('message', async ({ roomId, text }) => {
@@ -40,6 +46,15 @@ export const handleConnection = (io, socket) => {
 
     io.to(roomId).emit('message', msg);
   });
+
+  // Typing indicator
+socket.on('typing', ({ roomId, username, isTyping }) => {
+  // Broadcast to others in room
+  socket.to(roomId).emit('typing', {
+    username,  // now sending the actual username/email you passed
+    isTyping,
+  });
+});
 
   socket.on('disconnect', () => {
     console.log('[DISCONNECT]', email);
