@@ -12,49 +12,55 @@ export const handleConnection = (io, socket) => {
   io.emit('onlineUsers', [...new Set(onlineUsers.values())]);
 
   // JOIN ROOM
- socket.on('joinRoom', async (roomId) => {
-  for (const room of socket.rooms) {
-    if (room !== socket.id) {
-      socket.leave(room);
+  socket.on('joinRoom', async (roomId) => {
+    for (const room of socket.rooms) {
+      if (room !== socket.id) {
+        socket.leave(room);
+      }
     }
-  }
 
-  socket.join(roomId);
+    socket.join(roomId);
 
-  const history = await getRoomMessages(roomId);
+    const history = await getRoomMessages(roomId);
 
-  socket.emit('messageHistory', {
-    roomId,
-    history,
-  });
-});
-
-
-  // SEND MESSAGE (MUST BE OUTSIDE joinRoom)
-  socket.on('message', async ({ roomId, text }) => {
-    const msg = {
-      sender: uid,
+    socket.emit('messageHistory', {
       roomId,
-      text,
-      participants: roomId.split('_'),
-      timestamp: Date.now(),
-    };
-
-    console.log('[MESSAGE]', email, roomId, text);
-
-    await saveMessage(roomId, msg);
-
-    io.to(roomId).emit('message', msg);
+      history,
+    });
   });
 
-  // Typing indicator
-socket.on('typing', ({ roomId, username, isTyping }) => {
-  // Broadcast to others in room
-  socket.to(roomId).emit('typing', {
-    username,  // now sending the actual username/email you passed
-    isTyping,
+  // SEND MESSAGE — Now supports text + file
+socket.on('message', async (payload) => {
+  const { roomId, text = '', file } = payload;
+
+  console.log('[BACKEND RECEIVED MESSAGE]', {
+    from: email,
+    roomId,
+    hasText: !!text,
+    hasFile: !!file,
+    fileName: file?.name,
+    fileSize: file?.size,
   });
+
+  const msg = {
+    sender: uid,
+    roomId,
+    text,
+    file, // pass file through
+    participants: roomId.split('_'),
+    timestamp: Date.now(),
+  };
+
+  await saveMessage(roomId, msg);
+  io.to(roomId).emit('message', msg);
 });
+  // Typing indicator
+  socket.on('typing', ({ roomId, username, isTyping }) => {
+    socket.to(roomId).emit('typing', {
+      username,
+      isTyping,
+    });
+  });
 
   socket.on('disconnect', () => {
     console.log('[DISCONNECT]', email);
