@@ -33,20 +33,18 @@ export const handleConnection = (io, socket) => {
 socket.on('message', async (payload) => {
   const { roomId, text = '', file } = payload;
 
-  console.log('[BACKEND RECEIVED MESSAGE]', {
-    from: email,
-    roomId,
-    hasText: !!text,
-    hasFile: !!file,
-    fileName: file?.name,
-    fileSize: file?.size,
-  });
-
   const msg = {
     sender: uid,
     roomId,
     text,
-    file, // pass file through
+    file: file
+      ? {
+          url: file.url,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        }
+      : null,
     participants: roomId.split('_'),
     timestamp: Date.now(),
   };
@@ -54,6 +52,7 @@ socket.on('message', async (payload) => {
   await saveMessage(roomId, msg);
   io.to(roomId).emit('message', msg);
 });
+
   // Typing indicator
   socket.on('typing', ({ roomId, username, isTyping }) => {
     socket.to(roomId).emit('typing', {

@@ -8,7 +8,7 @@ export const saveMessage = async (roomId, message) => {
   await roomRef.set(
     {
       participants: message.participants,
-      lastMessage: message.text,
+      lastMessage: message.text || (message.file ? message.file.name : ''),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     },
     { merge: true }
@@ -16,10 +16,12 @@ export const saveMessage = async (roomId, message) => {
 
   await roomRef.collection('messages').add({
     sender: message.sender,
-    text: message.text,
+    text: message.text || '',
+    file: message.file || null,   // ✅ THIS LINE FIXES EVERYTHING
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
   });
 };
+
 
 export const getRoomMessages = async (roomId, limit = 50) => {
   const snap = await db
