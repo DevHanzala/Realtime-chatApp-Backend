@@ -61,6 +61,25 @@ socket.on('message', async (payload) => {
     });
   });
 
+socket.on('call-offer', ({ roomId, offer, withVideo = true }) => {
+  console.log('[CALL OFFER]', email, 'to room', roomId, 'video:', withVideo);
+  socket.to(roomId).emit('call-offer', { offer, from: email, withVideo });
+});
+
+  socket.on('call-answer', ({ roomId, answer }) => {
+    console.log('[CALL ANSWER]', email, 'in room', roomId);
+    socket.to(roomId).emit('call-answer', { answer });
+  });
+
+  socket.on('ice-candidate', ({ roomId, candidate }) => {
+    socket.to(roomId).emit('ice-candidate', { candidate });
+  });
+
+  socket.on('call-ended', ({ roomId }) => {
+    console.log('[CALL ENDED]', email, 'in room', roomId);
+    socket.to(roomId).emit('call-ended');
+  });
+
   socket.on('disconnect', () => {
     console.log('[DISCONNECT]', email);
 
